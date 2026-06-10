@@ -603,12 +603,12 @@ app.post('/api/tests/release-whole-pool', async (req, res) => {
         };
 
         if (releaseOption === 'schedule') {
-            testData.scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
+            testData.scheduledFor = new Date(`${scheduledDate}T${scheduledTime}:00+05:30`).toISOString();
         }
 
         // --- NEW: Handle Scheduled End Time ---
         if (endOption === 'schedule' && endDate && endTime) {
-            testData.scheduledEnd = new Date(`${endDate}T${endTime}`).toISOString();
+            testData.scheduledEnd = new Date(`${endDate}T${endTime}:00+05:30`).toISOString();
         }
         // ------------------------------------
 
