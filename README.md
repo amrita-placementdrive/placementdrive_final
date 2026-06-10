@@ -5,9 +5,9 @@
 ---
 **🛠 Tech Stack**
 
-+ Frontend: React.js
++ Frontend: React.js - deployed on Vercel
 
-+ Backend: Node.js & Express
++ Backend: Node.js & Express - deployed on Render
 
 + Database: Firebase Firestore (Real-time data management)  
 
