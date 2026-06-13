@@ -244,6 +244,35 @@ app.get('/api/pools/:courseId', async (req, res) => {
     }
 });
 
+// Faculty Route: Delete a Pool and all its questions
+app.delete('/api/pools/:poolId', async (req, res) => {
+    try {
+        const { poolId } = req.params;
+
+        // Delete all questions belonging to this pool
+        const questionsSnapshot = await db.collection('questions')
+            .where('poolId', '==', poolId)
+            .get();
+
+        const batch = db.batch();
+        questionsSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        // Delete the pool itself
+        batch.delete(db.collection('pools').doc(poolId));
+
+        await batch.commit();
+
+        res.status(200).send({ 
+            message: `Pool deleted successfully along with ${questionsSnapshot.size} question(s).` 
+        });
+    } catch (error) {
+        console.error("Error deleting pool:", error);
+        res.status(500).send({ message: 'Failed to delete pool' });
+    }
+});
+
 
 // --- QUESTION MANAGEMENT ROUTES ---
 

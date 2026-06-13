@@ -327,6 +327,30 @@ function FacultyDashboard({ user, onLogout }) {
         }
     };
 
+    const handleDeletePool = async (poolId, poolName) => {
+    const questionCount = questions.filter(q => q.poolId === poolId).length;
+    const confirmed = window.confirm(
+        `Are you sure you want to delete pool "${poolName}"?\n\nThis will permanently delete the pool and all ${questionCount} question(s) in it.\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(`${API_URL}/pools/${poolId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Failed to delete pool.');
+        setMessage(result.message);
+        await fetchPools();
+        await fetchQuestions();
+        if (selectedPoolId === poolId) setSelectedPoolId('');
+    } catch (error) {
+        setMessage(`Error: ${error.message}`);
+    }
+};
+
     // --- Form Handlers ---
     const handleQuestionSubmit = async (e) => {
         e.preventDefault();
@@ -917,8 +941,22 @@ function FacultyDashboard({ user, onLogout }) {
                                     <select value={selectedPoolId} onChange={e => setSelectedPoolId(e.target.value)}>
                                         <option value="">-- View All Questions ({questions.length}) --</option>
                                         {pools.map(pool => (
-                                            <option key={pool.id} value={pool.id}>{pool.poolName} ({questions.filter(q => q.poolId === pool.id).length} Qs)</option>
-                                        ))}
+    <div key={pool.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+        <span
+            onClick={() => setSelectedPoolId(pool.id === selectedPoolId ? '' : pool.id)}
+            style={{ cursor: 'pointer', color: pool.id === selectedPoolId ? '#D22D64' : '#333', fontWeight: pool.id === selectedPoolId ? 'bold' : 'normal', flexGrow: 1 }}
+        >
+            {pool.poolName} ({questions.filter(q => q.poolId === pool.id).length} Qs)
+        </span>
+        <button
+            onClick={() => handleDeletePool(pool.id, pool.poolName)}
+            className="btn btn-danger"
+            style={{ padding: '2px 10px', fontSize: '0.75em', marginLeft: '10px' }}
+        >
+            Delete
+        </button>
+    </div>
+))}
                                     </select>
                                 </div>
 
