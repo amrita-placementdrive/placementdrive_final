@@ -937,28 +937,31 @@ function FacultyDashboard({ user, onLogout }) {
                         {activeTab === 'view' && (
                             <div>
                                 <h3>Filter Questions by Pool</h3>
-                                <div className="input-group" style={{ marginBottom: '1rem' }}>
-                                    <select value={selectedPoolId} onChange={e => setSelectedPoolId(e.target.value)}>
-                                        <option value="">-- View All Questions ({questions.length}) --</option>
-                                        {pools.map(pool => (
-    <div key={pool.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-        <span
-            onClick={() => setSelectedPoolId(pool.id === selectedPoolId ? '' : pool.id)}
-            style={{ cursor: 'pointer', color: pool.id === selectedPoolId ? '#D22D64' : '#333', fontWeight: pool.id === selectedPoolId ? 'bold' : 'normal', flexGrow: 1 }}
-        >
-            {pool.poolName} ({questions.filter(q => q.poolId === pool.id).length} Qs)
-        </span>
-        <button
-            onClick={() => handleDeletePool(pool.id, pool.poolName)}
-            className="btn btn-danger"
-            style={{ padding: '2px 10px', fontSize: '0.75em', marginLeft: '10px' }}
-        >
-            Delete
-        </button>
+                                <div style={{ marginBottom: '1rem' }}>
+    <div
+        onClick={() => setSelectedPoolId('')}
+        style={{ cursor: 'pointer', padding: '6px 0', borderBottom: '1px solid #eee', color: !selectedPoolId ? '#D22D64' : '#333', fontWeight: !selectedPoolId ? 'bold' : 'normal' }}
+    >
+        -- View All Questions ({questions.length}) --
     </div>
-))}
-                                    </select>
-                                </div>
+    {pools.map(pool => (
+        <div key={pool.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+            <span
+                onClick={() => setSelectedPoolId(pool.id === selectedPoolId ? '' : pool.id)}
+                style={{ cursor: 'pointer', color: pool.id === selectedPoolId ? '#D22D64' : '#333', fontWeight: pool.id === selectedPoolId ? 'bold' : 'normal', flexGrow: 1 }}
+            >
+                {pool.poolName} ({questions.filter(q => q.poolId === pool.id).length} Qs)
+            </span>
+            <button
+                onClick={() => handleDeletePool(pool.id, pool.poolName)}
+                className="btn btn-danger"
+                style={{ padding: '2px 10px', fontSize: '0.75em', marginLeft: '10px' }}
+            >
+                Delete
+            </button>
+        </div>
+    ))}
+</div>
 
                                 <div className="questions-list">
                                     {questions.length === 0 ? (<p>No questions found for this subject.</p>) : (
