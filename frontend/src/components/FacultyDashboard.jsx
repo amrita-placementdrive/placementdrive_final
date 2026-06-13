@@ -11,6 +11,7 @@ import {
 } from "firebase/auth";
 import { auth } from '../firebase.js';
 import { API_URL } from '../api';
+import * as XLSX from 'xlsx';
 //added now
 // ===== Randomization helpers (from FacultyDashboard2 logic) =====
 
@@ -149,6 +150,28 @@ function FacultyDashboard({ user, onLogout }) {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    // --- REPORT DOWNLOAD FUNCTIONS ---
+    const downloadTestReport = async (test) => {
+        // Fetch scores for this specific test
+        const response = await fetch(`${API_URL}/faculty/report/test/${test.id}/${selectedSubject.id}`);
+        const data = await response.json();
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Test Report');
+        XLSX.writeFile(wb, `${test.testName}_report.xlsx`);
+    };
+
+    const downloadCourseReport = async () => {
+        const response = await fetch(`${API_URL}/faculty/report/course/${selectedSubject.id}`);
+        const data = await response.json();
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Course Report');
+        XLSX.writeFile(wb, `${selectedSubject.name}_course_report.xlsx`);
     };
 
     // --- Data Fetching Logic ---
@@ -848,7 +871,7 @@ function FacultyDashboard({ user, onLogout }) {
                         <p></p>
                         {/* Tab Navigation */}
                         <div className="faculty-tabs">
-                            {['create', 'view', 'release', 'analytics', 'scores'].map(tab => (
+                            {['create', 'view', 'release', 'analytics', 'scores', 'reports'].map(tab => (
 
                                 <button
                                     key={tab}
@@ -1458,7 +1481,7 @@ function FacultyDashboard({ user, onLogout }) {
                         )}
 
                         {/* Tests List (Displayed outside the analytics tab) */}
-                        {!['analytics', 'scores'].includes(activeTab) && tests.length > 0 && (
+                        {!['analytics', 'scores', 'reports'].includes(activeTab) && tests.length > 0 && (
 
                             <div style={{ marginTop: '2rem' }}>
                                 <h3>Released Tests ({tests.length})</h3>
@@ -1575,6 +1598,48 @@ function FacultyDashboard({ user, onLogout }) {
                                         )}
                                     </>
                                 )}
+                            </div>
+                        )}
+                        {/* --- 6. Reports Tab --- */}
+                        {activeTab === 'reports' && (
+                            <div className="analytics-dashboard">
+                                <h3>Reports - {selectedSubject.name}</h3>
+
+                                <div className="analytics-card" style={{ marginBottom: '1.5rem' }}>
+                                    <h4>Overall Course Report</h4>
+                                    <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+                                        All students, all quizzes, scores per quiz and average. Updates automatically with each new quiz.
+                                    </p>
+                                    <button className="btn btn-primary" onClick={downloadCourseReport}>
+                                        ⬇ Download Course Report (.xlsx)
+                                    </button>
+                                </div>
+
+                                <div className="analytics-card">
+                                    <h4>Per-Test Reports</h4>
+                                    <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+                                        Download a report for a specific test showing topic-wise scores for each student.
+                                    </p>
+                                    <div className="tests-grid">
+                                        {tests.length === 0 ? (
+                                            <p>No tests released yet.</p>
+                                        ) : (
+                                            tests.map(test => (
+                                                <div key={test.id} className="test-card">
+                                                    <div className="test-header">
+                                                        <h4>{test.testName}</h4>
+                                                    </div>
+                                                    <button
+                                                        className="btn btn-secondary"
+                                                        onClick={() => downloadTestReport(test)}
+                                                    >
+                                                        ⬇ Download Report
+                                                    </button>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
