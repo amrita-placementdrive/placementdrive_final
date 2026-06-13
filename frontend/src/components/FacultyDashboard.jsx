@@ -12,26 +12,9 @@ import {
 import { auth } from '../firebase.js';
 import { API_URL } from '../api';
 import * as XLSX from 'xlsx';
-//added now
-// ===== Randomization helpers (from FacultyDashboard2 logic) =====
-
-/*function shuffleArray(array) {
-  return [...array].sort(() => Math.random() - 0.5);
-}*/
-
-/*function pickRandomFromPool(pool, count, usedQuestionIds) {
-  const available = pool.filter(q => !usedQuestionIds.has(q.id));
-  const shuffled = shuffleArray(available);
-  const selected = shuffled.slice(0, count);
-
-  selected.forEach(q => usedQuestionIds.add(q.id));
-  return selected;
-}*/
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
-
-//const API_URL = 'http://172.29.23.168:5000';
 
 const subjects = [
     { id: 'dsa', name: 'Data Structures & Algorithms', icon: '🧩' },
@@ -88,6 +71,11 @@ function FacultyDashboard({ user, onLogout }) {
         difficulty: difficulties[0]
     });
 
+    // Central Dashboard Alert Messages (Initialized BEFORE the hook)
+    const [message, setMessage] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [uploadFile, setUploadFile] = useState(null);
+
     // Test Form States
     const [testForm, setTestForm] = useState({
         testName: '',
@@ -103,26 +91,26 @@ function FacultyDashboard({ user, onLogout }) {
             medium: 30,
             hard: 30
         },
-        // --- NEW FIELDS FOR CUSTOM DISTRIBUTION ---
         customPoolDistribution: false,
-        poolQuestionMap: {},
-        // ------------------------------------------
-
-        // --- NEW FIELDS FOR END TIME ---
+        poolQuestionMap: {}, // Maps poolId -> { easy: X, medium: Y, hard: Z }
         endOption: 'none',
         endDate: '',
         endTime: '',
     });
 
-    //scores
+    // scores
     const [selectedTestForScores, setSelectedTestForScores] = useState(null);
     const [testScores, setTestScores] = useState([]);
 
-
-    const [message, setMessage] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [uploadFile, setUploadFile] = useState(null);
-
+    // Auto-dismiss notification toast effect loop
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => {
+                setMessage('');
+            }, 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();
@@ -144,7 +132,7 @@ function FacultyDashboard({ user, onLogout }) {
 
             alert("Password updated successfully!");
             setPasswords({ oldPassword: '', newPassword: '', confirmPassword: '' });
-            setCurrentScreen('main'); // Go back to dashboard
+            setCurrentScreen('main'); 
         } catch (err) {
             setMessage('Error: ' + (err.code === 'auth/wrong-password' ? "Current password is incorrect." : err.message));
         } finally {
@@ -152,9 +140,8 @@ function FacultyDashboard({ user, onLogout }) {
         }
     };
 
-    // --- REPORT DOWNLOAD FUNCTIONS ---
+    // --- REPORT DOWNLOAD FUNCTIONS (XXLSX TYPO FIXED HERE) ---
     const downloadTestReport = async (test) => {
-        // Fetch scores for this specific test
         const response = await fetch(`${API_URL}/faculty/report/test/${test.id}/${selectedSubject.id}`);
         const data = await response.json();
 
@@ -175,7 +162,6 @@ function FacultyDashboard({ user, onLogout }) {
     };
 
     // --- Data Fetching Logic ---
-
     const fetchPools = useCallback(async () => {
         if (!selectedSubject?.id) return;
         try {
@@ -236,9 +222,6 @@ function FacultyDashboard({ user, onLogout }) {
             setMessage('Error fetching tests: ' + error.message);
         }
     }, [selectedSubject?.id]);
-    // now
-
-
 
     const fetchCourseAnalytics = useCallback(async () => {
         if (!selectedSubject) return;
@@ -283,6 +266,7 @@ function FacultyDashboard({ user, onLogout }) {
             fetchCourseAnalytics();
         }
     }, [selectedSubject, fetchQuestions, fetchTests, fetchCourseAnalytics, fetchPools]);
+
     const fetchTestScores = async (testId) => {
         setIsLoadingAnalytics(true);
         setSelectedTestForScores(testId);
@@ -298,9 +282,7 @@ function FacultyDashboard({ user, onLogout }) {
         }
     };
 
-
     // --- Helper Functions ---
-    // Calculates available questions per difficulty for a specific pool
     const getPoolInventory = (poolId) => {
         const poolQuestions = questions.filter(q => q.poolId === poolId);
         return {
@@ -422,7 +404,6 @@ function FacultyDashboard({ user, onLogout }) {
             setUploadFile(null);
             document.getElementById('file-upload-input').value = '';
             fetchQuestions();
-
         } catch (error) {
             setMessage('Error: ' + error.message);
         } finally {
@@ -462,10 +443,8 @@ function FacultyDashboard({ user, onLogout }) {
         }
 
         let endpoint = '';
-        // Convert a local date+time string to UTC ISO string (treating input as IST)
         const toISTISOString = (date, time) => {
             if (!date || !time) return null;
-            // IST is UTC+5:30, so subtract 5h30m to get UTC
             const localDate = new Date(`${date}T${time}:00+05:30`);
             return localDate.toISOString();
         };
@@ -489,28 +468,22 @@ function FacultyDashboard({ user, onLogout }) {
                 ? toISTISOString(testForm.endDate, testForm.endTime)
                 : null,
         };
-        // now
-        // 🔑 tells backend to generate UNIQUE papers per student
+
         payload.perStudentRandomization = true;
-        //now
+
         if (releaseType === 'random' && !payload.perStudentRandomization) {
             setMessage('Error: Per-student randomization flag missing.');
             setIsSubmitting(false);
             return;
         }
 
-
-
-
         if (releaseType === 'random') {
             endpoint = `${API_URL}/tests/release-random`;
 
             if (testForm.customPoolDistribution) {
-                // --- CUSTOM DISTRIBUTION VALIDATION LOGIC ---
                 let calculatedTotal = 0;
                 const errors = [];
 
-                // Validate each selected pool against inventory
                 testForm.selectedPoolIds.forEach(poolId => {
                     const counts = testForm.poolQuestionMap[poolId] || { easy: 0, medium: 0, hard: 0 };
                     const inventory = getPoolInventory(poolId);
@@ -539,39 +512,28 @@ function FacultyDashboard({ user, onLogout }) {
                     return;
                 }
 
-                // Override payload with calculated values
                 payload.totalQuestions = calculatedTotal;
                 payload.poolQuestionMap = testForm.poolQuestionMap;
                 payload.customPoolDistribution = true;
-                // Send dummy distribution to satisfy generic backend checks if necessary
                 payload.difficultyDistribution = { easy: 0, medium: 0, hard: 0 };
-
             } else {
-                // --- STANDARD LOGIC (Global Percentage) ---
                 const totalPercentage =
                     difficultyDistribution.easy +
                     difficultyDistribution.medium +
                     difficultyDistribution.hard;
 
                 if (totalPercentage !== 100 || totalQuestions <= 0) {
-                    setMessage(
-                        'Error: Total questions must be > 0 and difficulty percentages must sum to 100%.'
-                    );
+                    setMessage('Error: Total questions must be > 0 and difficulty percentages must sum to 100%.');
                     setIsSubmitting(false);
                     return;
                 }
 
                 payload.totalQuestions = Number(totalQuestions);
                 payload.difficultyDistribution = difficultyDistribution;
-
-                // ✅ CRITICAL FIX (ADD THESE TWO LINES)
                 payload.customPoolDistribution = false;
                 payload.poolQuestionMap = {};
             }
-
-
         } else {
-            // 'whole-pool'
             endpoint = `${API_URL}/tests/release-whole-pool`;
         }
 
@@ -589,7 +551,6 @@ function FacultyDashboard({ user, onLogout }) {
             }
 
             setMessage(result.message);
-            // Reset form
             setTestForm(prev => ({
                 ...prev,
                 testName: '',
@@ -599,15 +560,16 @@ function FacultyDashboard({ user, onLogout }) {
                 totalQuestions: 10,
                 endDate: prev.endOption === 'schedule' ? prev.endDate : '',
                 endTime: prev.endOption === 'schedule' ? prev.endTime : '',
-                poolQuestionMap: {}, // Reset custom map
+                poolQuestionMap: {}, 
             }));
             fetchTests();
             fetchCourseAnalytics();
-        } catch (error) {
+            } catch (error) {
             setMessage('Error releasing test: ' + error.message);
         } finally {
             setIsSubmitting(false);
         }
+        
     };
 
     const clearStudentAnalytics = () => {
@@ -636,14 +598,12 @@ function FacultyDashboard({ user, onLogout }) {
         }
     };
 
-
-    // --- Component Rendering ---
-
+    // --- Component Rendering Branches ---
     if (!selectedSubject) {
         return (
             <div className="app-container">
                 <nav className="navbar">
-                    <h1>Faculty Dashboard </h1>
+                    <h1>Faculty Dashboard</h1>
                     <div className="nav-controls">
                         <div className="profile-container">
                             <div className="profile-trigger" onClick={() => setShowProfileMenu(!showProfileMenu)}>
@@ -663,18 +623,20 @@ function FacultyDashboard({ user, onLogout }) {
                 </nav>
 
                 <main className="main-content">
-                    {/* Show password change OR subject selection */}
+                    {message && (
+                        <div className={`toast-popup ${message.toLowerCase().includes('error') ? 'toast-error' : 'toast-success'}`}>
+                            <span className="toast-icon">
+                                {message.toLowerCase().includes('error') ? '⚠️' : '✅'}
+                            </span>
+                            <div className="toast-content">{message}</div>
+                            <button className="toast-close-btn" onClick={() => setMessage('')}>×</button>
+                        </div>
+                    )}
+                    
                     {currentScreen === 'change-password' ? (
                         <div className="card" style={{ maxWidth: '500px', margin: '2rem auto' }}>
                             <h2>Security</h2>
                             <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Update your account password below.</p>
-
-                            {message && (
-                                <div className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
-                                    {message}
-                                </div>
-                            )}
-
                             <form onSubmit={handlePasswordChange}>
                                 <div className="input-group">
                                     <label>Current Password</label>
@@ -704,11 +666,7 @@ function FacultyDashboard({ user, onLogout }) {
                                     />
                                 </div>
                                 <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                                    <button
-                                        type="submit"
-                                        className="btn btn-primary"
-                                        disabled={isSubmitting}
-                                    >
+                                    <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                                         {isSubmitting ? 'Updating...' : 'Update Password'}
                                     </button>
                                     <button
@@ -731,11 +689,7 @@ function FacultyDashboard({ user, onLogout }) {
                             <p>Select a subject to manage questions and tests</p>
                             <div className="subjects-grid">
                                 {subjects.map(subject => (
-                                    <div
-                                        key={subject.id}
-                                        className="subject-card"
-                                        onClick={() => setSelectedSubject(subject)}
-                                    >
+                                    <div key={subject.id} className="subject-card" onClick={() => setSelectedSubject(subject)}>
                                         <div className="subject-icon">{subject.icon}</div>
                                         <h3>{subject.name}</h3>
                                     </div>
@@ -753,110 +707,78 @@ function FacultyDashboard({ user, onLogout }) {
             <nav className="navbar">
                 <h1>Faculty Dashboard {selectedSubject ? `- ${selectedSubject.name}` : ''}</h1>
                 <div className="profile-container">
-                    <button
-                        onClick={() => setSelectedSubject(null)}
-                        className="btn btn-secondary"
-                        style={{ marginRight: '0.75rem' }}
-                    >
+                    <button onClick={() => setSelectedSubject(null)} className="btn btn-secondary" style={{ marginRight: '0.75rem' }}>
                         ← Back to Subjects
                     </button>
-                    <div
-                        className="profile-trigger"
-                        onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    >
+                    <div className="profile-trigger" onClick={() => setShowProfileMenu(!showProfileMenu)}>
                         <span className="user-name-nav">{user.name}</span>
                         <div className="profile-icon-nav">👤</div>
                     </div>
-
                     {showProfileMenu && (
                         <div className="profile-dropdown">
-                            <button
-                                onClick={() => {
-                                    setCurrentScreen('change-password');
-                                    setShowProfileMenu(false);
-                                }}
-                            >
+                            <button onClick={() => { setCurrentScreen('change-password'); setShowProfileMenu(false); }}>
                                 🔒 Change Password
                             </button>
-                            <button onClick={onLogout} className="logout-opt">
-                                🚪 Logout
-                            </button>
+                            <button onClick={onLogout} className="logout-opt">🚪 Logout</button>
                         </div>
                     )}
                 </div>
             </nav>
 
             <main className="main-content">
+                {message && (
+                    <div className={`toast-popup ${message.toLowerCase().includes('error') ? 'toast-error' : 'toast-success'}`}>
+                        <span className="toast-icon">
+                            {message.toLowerCase().includes('error') ? '⚠️' : '✅'}
+                        </span>
+                        <div className="toast-content">{message}</div>
+                        <button className="toast-close-btn" onClick={() => setMessage('')}>×</button>
+                    </div>
+                )}
+
                 {currentScreen === 'change-password' ? (
                     <div className="card" style={{ maxWidth: '500px', margin: '2rem auto' }}>
                         <h2>Security</h2>
-                        <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
-                            Update your account password below.
-                        </p>
-
-                        {message && (
-                            <div className={`message ${message.includes('Error') ? 'error' : 'success'}`}>
-                                {message}
-                            </div>
-                        )}
-
+                        <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Update your account password below.</p>
                         <form onSubmit={handlePasswordChange}>
                             <div className="input-group">
                                 <label>Current Password</label>
                                 <input
                                     type="password"
                                     value={passwords.oldPassword}
-                                    onChange={e =>
-                                        setPasswords({ ...passwords, oldPassword: e.target.value })
-                                    }
+                                    onChange={e => setPasswords({ ...passwords, oldPassword: e.target.value })}
                                     required
                                 />
                             </div>
-
                             <div className="input-group">
                                 <label>New Password</label>
                                 <input
                                     type="password"
                                     value={passwords.newPassword}
-                                    onChange={e =>
-                                        setPasswords({ ...passwords, newPassword: e.target.value })
-                                    }
+                                    onChange={e => setPasswords({ ...passwords, newPassword: e.target.value })}
                                     required
                                 />
                             </div>
-
                             <div className="input-group">
                                 <label>Confirm New Password</label>
                                 <input
                                     type="password"
                                     value={passwords.confirmPassword}
-                                    onChange={e =>
-                                        setPasswords({ ...passwords, confirmPassword: e.target.value })
-                                    }
+                                    onChange={e => setPasswords({ ...passwords, confirmPassword: e.target.value })}
                                     required
                                 />
                             </div>
-
                             <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary"
-                                    disabled={isSubmitting}
-                                >
+                                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                                     {isSubmitting ? 'Updating...' : 'Update Password'}
                                 </button>
-
                                 <button
                                     type="button"
                                     className="btn btn-secondary"
                                     onClick={() => {
                                         setCurrentScreen('main');
                                         setMessage('');
-                                        setPasswords({
-                                            oldPassword: '',
-                                            newPassword: '',
-                                            confirmPassword: ''
-                                        });
+                                        setPasswords({ oldPassword: '', newPassword: '', confirmPassword: '' });
                                     }}
                                 >
                                     Cancel
@@ -866,13 +788,9 @@ function FacultyDashboard({ user, onLogout }) {
                     </div>
                 ) : (
                     <div className="card">
-
-                        <p></p>
-                        <p></p>
-                        {/* Tab Navigation */}
+                        {/* Tab Navigation Menu */}
                         <div className="faculty-tabs">
                             {['create', 'view', 'release', 'analytics', 'scores', 'reports'].map(tab => (
-
                                 <button
                                     key={tab}
                                     className={`faculty-tab ${activeTab === tab ? 'active' : ''}`}
@@ -883,17 +801,9 @@ function FacultyDashboard({ user, onLogout }) {
                             ))}
                         </div>
 
-                        {/* Tab Content */}
-                        {message && (
-                            <div className={`message ${message.includes('Error') ? 'error' : 'success'}`} style={{ whiteSpace: 'pre-wrap' }}>
-                                {message}
-                            </div>
-                        )}
-
-                        {/* --- 1. Create Questions Tab --- */}
+                        {/* --- 1. Create Questions Tab Section --- */}
                         {activeTab === 'create' && (
                             <div>
-                                {/* --- POOL CREATION SECTION --- */}
                                 <div className="pool-creation-section">
                                     <h3>Create/Select Question Pool</h3>
                                     <div className="form-row">
@@ -925,15 +835,11 @@ function FacultyDashboard({ user, onLogout }) {
 
                                 <hr className="divider" />
 
-                                {/* --- UPLOAD FORM SECTION --- */}
                                 <div className="upload-section">
                                     <h3>Bulk Upload Questions (.csv)</h3>
                                     <p>
                                         Upload file content will be added to the selected Pool above.
-                                        <span
-                                            onClick={downloadCsvTemplate}
-                                            style={{ color: '#D22D64', cursor: 'pointer', textDecoration: 'underline', marginLeft: '5px' }}
-                                        >
+                                        <span onClick={downloadCsvTemplate} style={{ color: '#D22D64', cursor: 'pointer', textDecoration: 'underline', marginLeft: '5px' }}>
                                             Download Template
                                         </span>
                                     </p>
@@ -1003,15 +909,12 @@ function FacultyDashboard({ user, onLogout }) {
                             </div>
                         )}
 
-                        {/* --- 2. View Questions Tab --- */}
+                        {/* --- 2. View Questions Tab Section --- */}
                         {activeTab === 'view' && (
                             <div>
                                 <h3>Filter Questions by Pool</h3>
                                 <div className="input-group" style={{ marginBottom: '1rem' }}>
-                                    <select
-                                        value={selectedPoolId}
-                                        onChange={e => setSelectedPoolId(e.target.value)}
-                                    >
+                                    <select value={selectedPoolId} onChange={e => setSelectedPoolId(e.target.value)}>
                                         <option value="">-- View All Questions ({questions.length}) --</option>
                                         {pools.map(pool => (
                                             <option key={pool.id} value={pool.id}>{pool.poolName} ({questions.filter(q => q.poolId === pool.id).length} Qs)</option>
@@ -1053,7 +956,7 @@ function FacultyDashboard({ user, onLogout }) {
                             </div>
                         )}
 
-                        {/* --- 3. Release Test Tab (UPDATED) --- */}
+                        {/* --- 3. Release Test Tab Section --- */}
                         {activeTab === 'release' && (
                             <form onSubmit={handleTestRelease} className="test-release-form">
                                 <div className="input-group">
@@ -1091,7 +994,6 @@ function FacultyDashboard({ user, onLogout }) {
                                     <input type="number" value={testForm.durationMinutes} onChange={e => setTestForm(prev => ({ ...prev, durationMinutes: e.target.value }))} min="1" required />
                                 </div>
 
-                                {/* --- END DATE/TIME SECTION --- */}
                                 <div className="input-group">
                                     <label>Test Expiry/End Options</label>
                                     <div className="release-options">
@@ -1177,7 +1079,6 @@ function FacultyDashboard({ user, onLogout }) {
                                     {!testForm.selectedPoolIds.length && <p style={{ color: 'red', fontSize: '0.8em' }}>Select at least one pool.</p>}
                                 </div>
 
-                                {/* --- RANDOM SELECTION OPTIONS (Conditional) --- */}
                                 {testForm.releaseType === 'random' && (
                                     <>
                                         <div className="input-group">
@@ -1189,7 +1090,7 @@ function FacultyDashboard({ user, onLogout }) {
                                                         setTestForm(prev => ({
                                                             ...prev,
                                                             customPoolDistribution: e.target.checked,
-                                                            poolQuestionMap: {} // Reset map on toggle
+                                                            poolQuestionMap: {} 
                                                         }))
                                                     }
                                                 />
@@ -1345,18 +1246,14 @@ function FacultyDashboard({ user, onLogout }) {
                             </form>
                         )}
 
-                        {/* --- 4. Analytics Tab --- */}
+                        {/* --- 4. Analytics Tab Section --- */}
                         {activeTab === 'analytics' && (
                             <div className="analytics-dashboard">
                                 {isLoadingAnalytics ? (
                                     <div className="message">Loading analytics...</div>
                                 ) : selectedStudent ? (
                                     <div className="student-analytics-view">
-                                        <button
-                                            onClick={clearStudentAnalytics}
-                                            className="btn btn-secondary"
-                                            style={{ marginBottom: '1rem' }}
-                                        >
+                                        <button onClick={clearStudentAnalytics} className="btn btn-secondary" style={{ marginBottom: '1rem' }}>
                                             ← Back to Course Analytics
                                         </button>
                                         <h3>Student Analysis: {studentAnalytics?.studentName || selectedStudent.substring(0, 8)}</h3>
@@ -1480,49 +1377,12 @@ function FacultyDashboard({ user, onLogout }) {
                             </div>
                         )}
 
-                        {/* Tests List (Displayed outside the analytics tab) */}
-                        {!['analytics', 'scores', 'reports'].includes(activeTab) && tests.length > 0 && (
-
-                            <div style={{ marginTop: '2rem' }}>
-                                <h3>Released Tests ({tests.length})</h3>
-                                <div className="tests-grid">
-                                    {tests.map(test => (
-                                        <div key={test.id} className="test-card">
-                                            <div className="test-header">
-                                                <h4>{test.testName}</h4>
-                                                <span className={`test-status ${test.status === 'active' ? 'status-active' :
-                                                    test.status === 'completed' ? 'status-completed' :
-                                                        test.status === 'scheduled' ? 'status-scheduled' : 'status-inactive'
-                                                    }`}>
-                                                    {test.status}
-                                                </span>
-                                            </div>
-                                            <div className="test-details">
-                                                <p>
-                                                    Questions:{" "}
-                                                    {test.totalQuestions ??
-                                                        test.questionCount ??
-                                                        test.questionIds?.length ??
-                                                        0}
-                                                </p>
-
-                                                <p>Duration: {test.durationMinutes} minutes</p>
-                                                {test.scheduledFor && (<p>Scheduled Start: {new Date(test.scheduledFor).toLocaleString()}</p>)}
-                                                {test.scheduledEnd && (<p style={{ fontWeight: 'bold' }}>Scheduled End: {new Date(test.scheduledEnd).toLocaleString()}</p>)}
-                                                <p>Created: {new Date(test.createdAt).toLocaleDateString()}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {/* --- 5. Scores Tab --- */}
+                        {/* --- 5. Scores Tab Section --- */}
                         {activeTab === 'scores' && (
                             <div className="analytics-dashboard">
                                 {!selectedTestForScores ? (
                                     <>
                                         <h3>Test Scores - {selectedSubject.name}</h3>
-
                                         <div className="tests-grid">
                                             {tests.length === 0 ? (
                                                 <p>No tests released yet.</p>
@@ -1568,7 +1428,6 @@ function FacultyDashboard({ user, onLogout }) {
                                             Student Scores ({testScores.length} attempts)
                                         </h3>
 
-
                                         {isLoadingAnalytics ? (
                                             <p>Loading scores...</p>
                                         ) : testScores.length === 0 ? (
@@ -1583,9 +1442,7 @@ function FacultyDashboard({ user, onLogout }) {
                                                                 <div className="student-info">
                                                                     <strong>
                                                                         {student.studentName}
-                                                                        {student.studentRollNo
-                                                                            ? ` (${student.studentRollNo})`
-                                                                            : ''}
+                                                                        {student.studentRollNo ? ` (${student.studentRollNo})` : ''}
                                                                     </strong>
                                                                 </div>
                                                                 <div className="student-scores">
@@ -1600,7 +1457,8 @@ function FacultyDashboard({ user, onLogout }) {
                                 )}
                             </div>
                         )}
-                        {/* --- 6. Reports Tab --- */}
+
+                        {/* --- 6. Reports Tab Section --- */}
                         {activeTab === 'reports' && (
                             <div className="analytics-dashboard">
                                 <h3>Reports - {selectedSubject.name}</h3>
@@ -1629,10 +1487,7 @@ function FacultyDashboard({ user, onLogout }) {
                                                     <div className="test-header">
                                                         <h4>{test.testName}</h4>
                                                     </div>
-                                                    <button
-                                                        className="btn btn-secondary"
-                                                        onClick={() => downloadTestReport(test)}
-                                                    >
+                                                    <button className="btn btn-secondary" onClick={() => downloadTestReport(test)}>
                                                         ⬇ Download Report
                                                     </button>
                                                 </div>
@@ -1643,10 +1498,43 @@ function FacultyDashboard({ user, onLogout }) {
                             </div>
                         )}
 
+                        {/* Summary Released Tests Summary Footer Overlay */}
+                        {!['analytics', 'scores', 'reports'].includes(activeTab) && tests.length > 0 && (
+                            <div style={{ marginTop: '2rem' }}>
+                                <h3>Released Tests ({tests.length})</h3>
+                                <div className="tests-grid">
+                                    {tests.map(test => (
+                                        <div key={test.id} className="test-card">
+                                            <div className="test-header">
+                                                <h4>{test.testName}</h4>
+                                                <span className={`test-status ${test.status === 'active' ? 'status-active' :
+                                                    test.status === 'completed' ? 'status-completed' :
+                                                    test.status === 'scheduled' ? 'status-scheduled' : 'status-inactive'
+                                                }`}>
+                                                    {test.status}
+                                                </span>
+                                            </div>
+                                            <div className="test-details">
+                                                <p>
+                                                    Questions:{" "}
+                                                    {test.totalQuestions ??
+                                                        test.questionCount ??
+                                                        test.questionIds?.length ??
+                                                        0}
+                                                </p>
+                                                <p>Duration: {test.durationMinutes} minutes</p>
+                                                {test.scheduledFor && (<p>Scheduled Start: {new Date(test.scheduledFor).toLocaleString()}</p>)}
+                                                {test.scheduledEnd && (<p style={{ fontWeight: 'bold' }}>Scheduled End: {new Date(test.scheduledEnd).toLocaleString()}</p>)}
+                                                <p>Created: {new Date(test.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
-
         </div>
     );
 }
