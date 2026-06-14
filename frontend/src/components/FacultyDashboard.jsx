@@ -945,7 +945,7 @@ function FacultyDashboard({ user, onLogout }) {
         -- View All Questions ({questions.length}) --
     </div>
     {pools.map(pool => (
-        <div key={pool.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+        <div key={pool.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #eee', backgroundColor: pool.id === selectedPoolId ? '#fce4ec' : 'transparent', borderRadius: '6px', cursor: 'pointer' }}>
             <span
                 onClick={() => setSelectedPoolId(pool.id === selectedPoolId ? '' : pool.id)}
                 style={{ cursor: 'pointer', color: pool.id === selectedPoolId ? '#D22D64' : '#333', fontWeight: pool.id === selectedPoolId ? 'bold' : 'normal', flexGrow: 1 }}
