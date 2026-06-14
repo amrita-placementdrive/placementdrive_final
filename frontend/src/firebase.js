@@ -1,6 +1,6 @@
 // frontend/src/firebase.js
 import { initializeApp } from 'firebase/app';
-import { getAuth, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, browserSessionPersistence, setPersistence } from 'firebase/auth';
 import { 
     getFirestore, 
     doc, 
@@ -32,6 +32,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+setPersistence(auth, browserSessionPersistence);
 const db = getFirestore(app);
 
 // Export all necessary authentication and Firestore functions
