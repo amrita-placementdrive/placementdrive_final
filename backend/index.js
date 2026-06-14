@@ -829,6 +829,8 @@ app.post('/api/tests/start-specific', async (req, res) => {
                 .filter(d => d.exists)
                 .map(d => ({ id: d.id, ...d.data() }));
 
+            shuffleArray(questions);
+
             if (questions.length === 0) {
                 return res.status(400).send({ message: 'No questions found for this test.' });
             }
