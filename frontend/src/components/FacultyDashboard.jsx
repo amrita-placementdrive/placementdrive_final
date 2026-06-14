@@ -77,26 +77,34 @@ function FacultyDashboard({ user, onLogout }) {
     const [uploadFile, setUploadFile] = useState(null);
 
     // Test Form States
-    const [testForm, setTestForm] = useState({
+    const INITIAL_TEST_FORM = {
         testName: '',
+        durationMinutes: 60,
+
         releaseOption: 'now',
         scheduledDate: '',
         scheduledTime: '',
-        durationMinutes: 60,
-        releaseType: 'whole-pool',
-        selectedPoolIds: [],
-        totalQuestions: 10,
-        difficultyDistribution: {
-            easy: 40,
-            medium: 30,
-            hard: 30
-        },
-        customPoolDistribution: false,
-        poolQuestionMap: {}, // Maps poolId -> { easy: X, medium: Y, hard: Z }
+
         endOption: 'none',
         endDate: '',
         endTime: '',
-    });
+
+        releaseType: 'whole-pool',
+
+        selectedPoolIds: [],
+
+        totalQuestions: '',
+
+        difficultyDistribution: {
+            easy: 40,
+            medium: 40,
+            hard: 20
+        },
+
+        customPoolDistribution: false,
+        poolQuestionMap: {}
+    };
+    const [testForm, setTestForm] = useState(INITIAL_TEST_FORM);
 
     // scores
     const [selectedTestForScores, setSelectedTestForScores] = useState(null);
@@ -575,17 +583,8 @@ function FacultyDashboard({ user, onLogout }) {
             }
 
             setMessage(result.message);
-            setTestForm(prev => ({
-                ...prev,
-                testName: '',
-                scheduledDate: '',
-                scheduledTime: '',
-                selectedPoolIds: [],
-                totalQuestions: 10,
-                endDate: prev.endOption === 'schedule' ? prev.endDate : '',
-                endTime: prev.endOption === 'schedule' ? prev.endTime : '',
-                poolQuestionMap: {}, 
-            }));
+            setTestForm(INITIAL_TEST_FORM);
+            
             fetchTests();
             fetchCourseAnalytics();
             } catch (error) {
