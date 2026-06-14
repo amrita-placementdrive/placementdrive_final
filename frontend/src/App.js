@@ -1,12 +1,12 @@
 // frontend/src/App.js
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase.js';
 import LoginScreen from './components/Login.jsx';
 import StudentDashboard from './components/StudentDashboard.jsx';
 import FacultyDashboard from './components/FacultyDashboard.jsx';
-import AdminDashboard from './components/AdminDashboard.jsx'; 
+import AdminDashboard from './components/AdminDashboard.jsx';
 import './style.css';
 
 const App = () => {
@@ -14,29 +14,38 @@ const App = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            if (currentUser) {
-                const userDocRef = doc(db, 'users', currentUser.uid);
-                const userDoc = await getDoc(userDocRef);
-                if (userDoc.exists()) {
-                    // --- FIX: Correctly merge user data while preserving Firebase methods ---
-                    // This creates a new object that inherits from the Firebase User object's prototype,
-                    // ensuring methods like getIdToken() are available. Then, it copies properties
-                    // from both the auth object and the Firestore document into it.
-                    const combinedData = Object.create(Object.getPrototypeOf(currentUser));
-                    Object.assign(combinedData, currentUser, userDoc.data());
-                    
-                    setUserData(combinedData);
+        const isSessionActive = sessionStorage.getItem('sessionActive');
+        setPersistence(auth, inMemoryPersistence).then(() => {
+            if (!isSessionActive) {
+                signOut(auth).then(() => {
+                    sessionStorage.setItem('sessionActive', 'true');
+                });
+            }
+
+            const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+                if (currentUser) {
+                    const userDocRef = doc(db, 'users', currentUser.uid);
+                    const userDoc = await getDoc(userDocRef);
+                    if (userDoc.exists()) {
+                        // --- FIX: Correctly merge user data while preserving Firebase methods ---
+                        // This creates a new object that inherits from the Firebase User object's prototype,
+                        // ensuring methods like getIdToken() are available. Then, it copies properties
+                        // from both the auth object and the Firestore document into it.
+                        const combinedData = Object.create(Object.getPrototypeOf(currentUser));
+                        Object.assign(combinedData, currentUser, userDoc.data());
+
+                        setUserData(combinedData);
+                    } else {
+                        console.error("Auth successful, but no Firestore user document found.");
+                        setUserData(null);
+                    }
                 } else {
-                    console.error("Auth successful, but no Firestore user document found.");
                     setUserData(null);
                 }
-            } else {
-                setUserData(null);
-            }
-            setIsLoading(false);
+                setIsLoading(false);
+            });
+            return () => unsubscribe();
         });
-        return () => unsubscribe();
     }, []);
 
     const handleLogout = async () => {
@@ -46,7 +55,7 @@ const App = () => {
             console.error('Error signing out: ', error);
         }
     };
-    
+
     const renderDashboard = () => {
         if (!userData) {
             return <LoginScreen />;
@@ -64,12 +73,12 @@ const App = () => {
                 return <LoginScreen />;
         }
     };
-    
+
     return (
         <>
-            {isLoading 
+            {isLoading
                 ? <div className="loading-screen"><h1>Loading...</h1></div>
-                : renderDashboard() 
+                : renderDashboard()
             }
         </>
     );
