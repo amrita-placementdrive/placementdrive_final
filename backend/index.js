@@ -203,6 +203,18 @@ app.post('/api/admin/upload-users', verifyFirebaseToken, upload.single('usersFil
         });
 });
 
+// Admin Route: Get all users by role
+app.get('/api/admin/users', verifyFirebaseToken, async (req, res) => {
+    try {
+        const { role } = req.query;
+        const snapshot = await db.collection('users').where('role', '==', role).get();
+        const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+        res.status(200).send(users);
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).send({ message: 'Failed to fetch users' });
+    }
+});
 
 // --- QUESTION POOL MANAGEMENT ROUTES ---
 
